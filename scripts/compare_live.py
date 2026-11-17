@@ -13,6 +13,9 @@ Virtuoso handles more slowly than the constants they replaced.
 Usage, from the repository root:
 
     python scripts/compare_live.py [--only PMWQ032] [--workers 4]
+
+Queries go only to --endpoint (default: the PlantMetWiki endpoint), and only
+.rq files inside this repository are read, whatever a .ttl says.
 """
 
 import argparse
@@ -34,6 +37,7 @@ SH = Namespace("http://www.w3.org/ns/shacl#")
 SCHEMA = Namespace("https://schema.org/")
 SNORQL = Namespace("https://w3id.org/snorql/ns#")
 OWL_DEPRECATED = "http://www.w3.org/2002/07/owl#deprecated"
+ENDPOINT = "https://plantmetwiki.bioinformatics.nl/sparql"
 
 
 def run(endpoint, query, timeout):
@@ -62,7 +66,7 @@ def rq_query(path, defaults):
     return re.sub(r"\{\{\s*(\w+)\s*\}\}", lambda m: defaults[m.group(1)], body)
 
 
-def compare(ttl, timeout):
+def compare(ttl, timeout, endpoint):
     g = Graph().parse(ttl, format="turtle")
     s = next(g.subjects(DCTERMS.identifier, None))
     ident = str(g.value(s, DCTERMS.identifier))
@@ -70,10 +74,15 @@ def compare(ttl, timeout):
     if alias is None or any(str(p) == OWL_DEPRECATED for p in g.predicates(s, None)):
         return ident, None
     target = str(g.value(s, SCHEMA.target))
+    if target != endpoint:
+        return ident, f"skipped: schema:target {target} is not {endpoint}"
+    rq = (REPO / str(alias)).resolve()
+    if not rq.is_relative_to(REPO) or rq.suffix != ".rq" or not rq.is_file():
+        return ident, f"skipped: alias {alias} is not an .rq file in this repository"
     new_q = str(g.value(s, SH.select))
     defaults = {str(g.value(p, SH.path)).split("#")[-1]: str(g.value(p, SH.defaultValue))
                 for p in g.objects(s, SH.parameter)}
-    old_q = rq_query(REPO / str(alias), defaults)
+    old_q = rq_query(rq, defaults)
     try:
         oc, orows, osecs = run(target, old_q, timeout)
     except Exception as e:
@@ -96,6 +105,7 @@ def main():
     ap.add_argument("--only", nargs="*", help="identifiers to compare")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--timeout", type=int, default=180)
+    ap.add_argument("--endpoint", default=ENDPOINT, help="the only endpoint queries are sent to")
     args = ap.parse_args()
     support = {"collection.ttl", "categories.ttl", "contributors.ttl"}
     files = [p for p in REPO.rglob("*.ttl")
@@ -104,7 +114,7 @@ def main():
         files = [p for p in files if any(f'"{i}"' in p.read_text(encoding="utf-8") for i in args.only)]
     results = []
     with concurrent.futures.ThreadPoolExecutor(args.workers) as pool:
-        for ident, result in pool.map(lambda p: compare(p, args.timeout), files):
+        for ident, result in pool.map(lambda p: compare(p, args.timeout, args.endpoint), files):
             if result is not None:
                 results.append((ident, result))
     bad = 0
