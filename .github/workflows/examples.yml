@@ -14,9 +14,9 @@ on:
 
 jobs:
   examples:
-    uses: wikipathways/Snorql-UI/.github/workflows/examples-index.yml@v1.5.1
+    uses: wikipathways/Snorql-UI/.github/workflows/examples-index.yml@d91edd480c55ea7c3e65e2e891a0de323c9b97a2  # v1.5.1
     with:
-      tools-ref: v1.5.1
+      tools-ref: d91edd480c55ea7c3e65e2e891a0de323c9b97a2  # v1.5.1
       publish: ${{ github.event_name != 'pull_request' }}
       sib-project: PlantMetWiki
     permissions:

@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: wikipathways/Snorql-UI
-          ref: v1.5.1
+          ref: d91edd480c55ea7c3e65e2e891a0de323c9b97a2  # v1.5.1
           path: .snorql-tools
           sparse-checkout: tools/examples
       - uses: actions/setup-python@v5
